@@ -2,30 +2,32 @@
 
 # DHCP Spoofing Attack
 
-> **Autor:** Edgardy Olivero | **Matricula:** 20250704  
-> **Laboratorio:** EGALDITO_LAB | **Herramienta:** Python 3 + Scapy  
+> **Autor:** Edgardy Olivero | **Matrícula:** 20250704
+> **Laboratorio:** EGALDITO\_LAB | **Herramienta:** Python 3 + Scapy
 > **Repositorio:** [github.com/Edgardy715/DHCP-spoofing](https://github.com/Edgardy715/DHCP-spoofing)
 
 ---
 
-## Objetivo del Laboratorio
+## 📋 Objetivo del Laboratorio
 
-Demostrar como un atacante puede desplegar un servidor DHCP fraudulento que responda antes que el servidor legitimo, asignando a los clientes una puerta de enlace y DNS falsos controlados por el atacante. El resultado es una posicion de Man-in-the-Middle pasiva sobre el trafico de los nuevos clientes DHCP [web:46][web:53][web:57].
-
-## Objetivo del Script
-
-Escuchar solicitudes DHCP Discover en VLAN10, responder con DHCP Offer y ACK que asignan la IP del atacante como gateway y DNS, completar el handshake DORA completo y mantener un pool de IPs falsas asignadas por MAC de cliente. El script actua como un servidor DHCP rogue en la red y contesta a los clientes antes que el servidor legitimo [web:52][web:54][web:57].
+Demostrar cómo un atacante puede desplegar un servidor DHCP fraudulento (rogue) que responda antes que el servidor legítimo, asignando a los clientes una puerta de enlace y DNS falsos controlados por el atacante. El resultado es una posición de Man-in-the-Middle pasiva sobre el tráfico de los nuevos clientes DHCP, sin necesidad de modificar ninguna configuración en los equipos víctima.
 
 ---
 
-## Estructura del Repositorio
+## 🎯 Objetivo del Script
+
+Escuchar solicitudes DHCP Discover en VLAN 10, responder con DHCP Offer y ACK que asignan la IP del atacante como gateway y DNS, completar el handshake DORA completo y mantener un pool de IPs falsas asignadas por MAC de cliente. El script actúa como servidor DHCP rogue y compite con el servidor legítimo (R1) respondiendo primero.
+
+---
+
+## 📁 Estructura del Repositorio
 
 ```text
 DHCP-spoofing/
 ├── Script/
-│   └── DHCP-Spoofing.py                  <- Script principal del ataque
+│   └── DHCP-Spoofing.py                  ← Script principal del ataque
 ├── Mitigacion/
-│   └── Mitigacion-DHCP-Spoofing.ios      <- Comandos DHCP Snooping (Cisco IOS)
+│   └── Mitigacion-DHCP-Spoofing.ios      ← Comandos DHCP Snooping (Cisco IOS)
 ├── Conf-Topologia/
 │   └── scripts_bases_configs/
 │       ├── R1.ios
@@ -38,31 +40,31 @@ DHCP-spoofing/
 
 ---
 
-## Parametros del Script
+## ⚙️ Parámetros del Script
 
-| Variable | Valor | Descripcion |
+| Variable | Valor | Descripción |
 |---|---|---|
-| `IFACE` | `eth0.10` | Subinterfaz VLAN10 del atacante. |
-| `FAKE_GW` | `192.168.10.2` | IP falsa anunciada como gateway, equivalente a la IP del atacante. |
+| `IFACE` | `eth0.10` | Subinterfaz VLAN 10 del atacante. |
+| `FAKE_GW` | `192.168.10.2` | IP falsa anunciada como gateway (IP del atacante). |
 | `FAKE_DNS` | `192.168.10.2` | IP falsa anunciada como servidor DNS. |
-| `SUBNET` | `255.255.255.0` | Mascara de subred asignada. |
-| `POOL` | `192.168.10.100-149` | Rango de IPs que entrega el servidor falso. |
-| `lease_time` | `3600` | Duracion de la concesion en segundos (1 hora). |
-| `asignado` | dict `{mac: ip}` | Registro de IPs entregadas por MAC cliente. |
+| `SUBNET` | `255.255.255.0` | Máscara de subred asignada a los clientes. |
+| `POOL` | `192.168.10.100–149` | Rango de IPs que entrega el servidor rogue. |
+| `lease_time` | `3600` | Duración de la concesión en segundos (1 hora). |
+| `asignado` | `dict {mac: ip}` | Registro de IPs entregadas por MAC de cliente. |
 
 ---
 
-## Requisitos
+## 🛠️ Requisitos
 
 ```bash
 # Dependencias
 pip install scapy
 
-# Configurar subinterfaz VLAN10
+# Crear subinterfaz VLAN 10
 ip link add link eth0 name eth0.10 type vlan id 10
 ip link set eth0.10 up
 
-# Asignar IP al atacante en VLAN10
+# Asignar IP al atacante en VLAN 10
 ip addr add 192.168.10.2/24 dev eth0.10
 
 # Ejecutar como root
@@ -71,141 +73,122 @@ sudo python3 Script/DHCP-Spoofing.py
 
 ---
 
-## Funcionamiento del Script
+## 🔍 Funcionamiento del Script
 
-### Flujo de ejecucion
+### Flujo de ejecución
 
 ```text
 1. Verifica privilegios root.
 2. sniff() escucha en eth0.10 filtrando udp port 67.
-3. dhcp_handler() procesa cada paquete:
-   |-- DHCP Discover (tipo 1):
-   |   -> asigna una IP del POOL a la MAC del cliente.
-   |   -> envia DHCP Offer con FAKE_GW y FAKE_DNS.
-   '-- DHCP Request (tipo 3):
-       -> recupera la IP asignada.
-       -> envia DHCP ACK confirmando la concesion.
-4. Ctrl+C -> cleanup(): imprime total de IPs asignadas.
+3. dhcp_handler() procesa cada paquete entrante:
+   |── DHCP Discover (tipo 1):
+   |   → asigna una IP del POOL a la MAC del cliente.
+   |   → envía DHCP Offer con FAKE_GW y FAKE_DNS.
+   └── DHCP Request (tipo 3):
+       → recupera la IP previamente asignada.
+       → envía DHCP ACK confirmando la concesión.
+4. Ctrl+C → cleanup(): imprime total de IPs asignadas.
 ```
 
 ### Intercambio DORA modificado
 
 ```text
-Cliente              Atacante (servidor falso)         R1 (servidor legitimo)
-   |--- Discover --->|
-   |                 |--- Discover --->                 | (llega tarde o es ignorado)
-   |<-- Offer -------|  GW=192.168.10.2 / DNS=192.168.10.2
-   |--- Request ---->|
-   |<-- ACK ---------|  IP asignada, GW=192.168.10.2
+Cliente            Atacante (servidor rogue)       R1 (servidor legítimo)
+   |─── Discover ──►|
+   |◄── Offer ───────| GW=192.168.10.2 / DNS=192.168.10.2
+   |─── Request ────►|
+   |◄── ACK ─────────| IP asignada, GW=192.168.10.2
 
-Resultado: el cliente configura gateway y DNS falsos, y su trafico pasa por Kali.
+Resultado: el cliente configura gateway y DNS falsos.
+           Todo su tráfico pasa a través de Kali.
 ```
 
-### Estructura del paquete DHCP Offer/ACK
+### Estructura del paquete DHCP Offer / ACK
 
 ```text
-[Ether]   src=MAC_atacante  dst=ff:ff:ff:ff:ff:ff
-  [IP]    src=192.168.10.2  dst=255.255.255.255
-    [UDP] sport=67          dport=68
-      [BOOTP] op=2          yiaddr=IP_asignada  siaddr=192.168.10.2
+[Ether]   src=MAC_atacante   dst=ff:ff:ff:ff:ff:ff
+  [IP]    src=192.168.10.2   dst=255.255.255.255
+    [UDP] sport=67           dport=68
+      [BOOTP] op=2           yiaddr=IP_asignada   siaddr=192.168.10.2
         [DHCP] options:
-          message-type: offer / ack
-          server_id:    192.168.10.2
-          lease_time:   3600
-          subnet_mask:  255.255.255.0
-          router:       192.168.10.2
-          name_server:  192.168.10.2
+          message-type : offer / ack
+          server_id    : 192.168.10.2
+          lease_time   : 3600
+          subnet_mask  : 255.255.255.0
+          router       : 192.168.10.2
+          name_server  : 192.168.10.2
 ```
 
 ---
 
-## Documentacion de la Red
+## 🌐 Documentación de la Red
 
-### Topologia del Laboratorio
+### Topología del Laboratorio
 
 ```text
 +------------------+        +---------------------+        +---------------------+
 |   Kali Linux     |        |        SW2          |        |        SW1          |
-|   (Atacante)     |<------>|  GNS3 vIOS-L2       |<------>|  GNS3 vIOS-L2      |
-|  eth0 / eth0.10  |  Gi0/1 | VTP Client          |  Gi0/0 | VTP Server         |
-| 0c:bf:c5:c2:0000 |        | 0cc0.7fb8.0000      |        | 0cb5.a4d7.0000    |
+|   (Atacante)     |◄──────►|  GNS3 vIOS-L2       |◄──────►|  GNS3 vIOS-L2       |
+|  eth0 / eth0.10  | Gi0/1  | VTP Client          | Gi0/0  | VTP Server          |
+| 0c:bf:c5:c2:00:00|        | 0cc0.7fb8.0000      |        | 0cb5.a4d7.0000      |
 +------------------+        +---------------------+        +---------------------+
-                                                                   |  Gi0/1
-                                                        +---------------------+
-                                                        |         R1          |
-                                                        |  192.168.10.1/24    |
-                                                        +---------------------+
+                                                                    | Gi0/1
+                                                         +---------------------+
+                                                         |         R1          |
+                                                         |  192.168.10.1/24    |
+                                                         +---------------------+
 ```
 
-> Topologia completa en `Topologia/Topologia.png`
+> Topología completa disponible en `Topologia/Topologia.png`
 
 ### Tabla de Direccionamiento
 
-| Dispositivo | Interfaz | VLAN | IP / Mascara | MAC | Rol |
+| Dispositivo | Interfaz | VLAN | IP / Máscara | MAC | Rol |
 |---|---|---|---|---|---|
-| Kali Linux | eth0.10 | 10 | 192.168.10.2/24 | `0c:bf:c5:c2:00:00` | Atacante / servidor rogue |
-| SW1 | Gi0/0 (trunk) | 1,10 | — | `0cb5.a4d7.0000` | VTP Server / Root |
-| SW2 | Gi0/0 (trunk) | 1,10 | — | `0cc0.7fb8.0000` | VTP Client |
-| R1 | Gi0/0 | 10 | 192.168.10.1/24 | — | Gateway / DHCP legitimo |
+| Kali Linux | `eth0.10` | 10 | 192.168.10.2/24 | `0c:bf:c5:c2:00:00` | Atacante / servidor rogue |
+| SW1 | Gi0/0 (trunk) | 1, 10 | — | `0cb5.a4d7.0000` | VTP Server / Root Bridge |
+| SW2 | Gi0/1 (acceso) | 1, 10 | — | `0cc0.7fb8.0000` | VTP Client |
+| R1 | Gi0/0 | 10 | 192.168.10.1/24 | — | Gateway / DHCP Server legítimo |
 
 ```text
-VTP Domain: EGALDITO_LAB | SW1: VTP Server | SW2: VTP Client
-STP Root Bridge: SW1 | Priority: 32769 | MAC: 0cb5.a4d7.0000
-VLAN 10: RED_LOCAL (192.168.10.0/24)
+VTP Domain  : EGALDITO_LAB
+SW1         : VTP Server | STP Root Bridge | Priority 32769 | MAC 0cb5.a4d7.0000
+SW2         : VTP Client
+VLAN 10     : RED_LOCAL — 192.168.10.0/24
 ```
 
 ---
 
-## Capturas de Pantalla
+## 🛡️ Contramedidas
 
-| Momento | Descripcion |
-|---|---|
-| Pre-ataque | Cliente obtiene IP con GW=192.168.10.1 (R1 legitimo). |
-| Durante ataque | El script imprime `[DISCOVER] mac -> Ofreciendo IP GW=192.168.10.2`. |
-| Efecto | `ip route` del cliente muestra default via 192.168.10.2. |
-| Verificacion | Trafico del cliente pasa por Kali y puede capturarse con Wireshark. |
-
----
-
-## Contramedidas
-
-El archivo de mitigacion esta en `Mitigacion/Mitigacion-DHCP-Spoofing.ios`.
+El archivo de mitigación está en `Mitigacion/Mitigacion-DHCP-Spoofing.ios`.
 
 ### 1. DHCP Snooping — defensa principal
 
 ```cisco
 en
 conf term
-! Habilitar DHCP Snooping globalmente
 ip dhcp snooping
-! Aplicar a la VLAN correspondiente
-ip dhcp snooping vlan 1
+ip dhcp snooping vlan 10
 
-! Puerto hacia el servidor DHCP legitimo (R1) = trusted
+! Puerto hacia el servidor DHCP legítimo (R1) = trusted
 interface GigabitEthernet0/0
-ip dhcp snooping trust
+ ip dhcp snooping trust
 exit
 
 ! Puerto del atacante = untrusted (por defecto)
 ! Limitar tasa de paquetes DHCP
 interface GigabitEthernet0/1
-ip dhcp snooping limit rate 10
+ ip dhcp snooping limit rate 10
 exit
-
 do wr
 ```
 
-> DHCP Snooping bloquea los DHCP Offers provenientes de puertos untrusted y mantiene una base de bindings para saber que IP, MAC y puerto corresponden a cada host [web:52][web:54][web:55][web:57].
+> DHCP Snooping bloquea los DHCP Offers provenientes de puertos untrusted, impidiendo que el servidor rogue entregue configuraciones falsas a los clientes. Solo el puerto marcado como `trust` (hacia R1) puede enviar respuestas DHCP.
+>
+> **Nota:** La mitigación se aplica sobre `vlan 10` porque es la VLAN donde el script realiza el ataque (`eth0.10`). Aplicarla solo en VLAN 1 no protegería a los clientes de VLAN 10.
 
-### Verificacion
-
-```cisco
-SW2# show ip dhcp snooping
-SW2# show ip dhcp snooping binding
-SW2# show ip dhcp snooping statistics
-```
-
-### 2. Port Security para limitar MACs por puerto
+### 2. Port Security — defensa complementaria
 
 ```cisco
 interface GigabitEthernet0/1
@@ -215,13 +198,25 @@ interface GigabitEthernet0/1
  switchport port-security mac-address sticky
 ```
 
+### Verificación
+
+```cisco
+SW2# show ip dhcp snooping
+SW2# show ip dhcp snooping binding
+SW2# show ip dhcp snooping statistics
+```
+
 ---
 
-## Video Demostrativo
+## 🎬 Video Demostrativo
 
-**Lista de reproduccion EGALDITO_LAB:** [Layer 2 Network Attacks](https://www.youtube.com/@Edgardy715)
+**Lista de reproducción EGALDITO\_LAB — Layer 2 Network Attacks:**
+[https://www.youtube.com/playlist?list=PL24FUvJVT9rBmlkIyA1pGp28VHhh3JK1j](https://www.youtube.com/playlist?list=PL24FUvJVT9rBmlkIyA1pGp28VHhh3JK1j)
+
+**Video de este ataque:**
+[https://youtu.be/i4Lo84_Ymf0](https://youtu.be/i4Lo84_Ymf0)
 
 ---
 
-*Laboratorio desarrollado con fines estrictamente educativos en entorno GNS3 aislado.*  
-*Autor: Edgardy Olivero | 20250704 | EGALDITO_LAB*
+*Laboratorio desarrollado con fines estrictamente educativos en entorno GNS3 aislado.*
+*Autor: Edgardy Olivero | 20250704 | EGALDITO\_LAB*
